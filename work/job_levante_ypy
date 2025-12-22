@@ -1,0 +1,164 @@
+#!/bin/bash
+#SBATCH --job-name=khajjar_fesom
+#SBATCH -p compute
+#SBATCH --ntasks=6144    #7680  #6144 #12288  #6912 #2304 #9216 #9600 #4096 #2304 #5376
+#SBATCH --ntasks-per-node=128
+#SBATCH --time=02:30:00
+#SBATCH -o slurm-out.out
+#SBATCH -e slurm-err.out
+#SBATCH -A bb1143
+
+
+#########################################################################################
+
+source /sw/etc/profile.levante
+source ../env/levante.dkrz.de/shell.gnu
+# read -r USED_SHELL < ../env/levante.dkrz.de/shell.gnu
+# source $USED_SHELL
+# echo "using environment from" $USED_SHELL
+
+ulimit -s 204800 # https://docs.dkrz.de/doc/levante/running-jobs/runtime-settings.html
+
+
+# Read the value from the file into a variable SBATCH --exclusive
+yearold=$(awk 'NR==1 {print $3}' /work/bb1143/b382132/model/fesom2/FESOM2_multi-year/result/fesom.clock)
+dayold=$(awk 'NR==1 {print $2}' /work/bb1143/b382132/model/fesom2/FESOM2_multi-year/result/fesom.clock)
+cycleold=$(sed -n '1p' fesom.cycle)
+
+
+if [ "$dayold" -ge 365 ]; then
+
+    if [ "$yearold" -eq 2018 ]; then
+    
+        # Copy
+        # cp -r /work/bb1143/b382132/model/fesom2/FESOM2_multi-year/result/* /work/bb1143/b382132/model/fesom2/FESOM2_multi-year/cycleResult/cycle_"$cycleold"/
+        
+        # Delete
+        # rm /work/bb1143/b382132/model/fesom2/FESOM2_multi-year/result/*
+        
+        ln -s /work/bb1143/b382132/model/fesom2/FESOM2_multi-year/cycleResult/cycle_"$cycleold"/fesom.2018.oce.restart.nc /work/bb1143/b382132/model/fesom2/FESOM2_multi-year/result/fesom.1957.oce.restart.nc
+        ln -s /work/bb1143/b382132/model/fesom2/FESOM2_multi-year/cycleResult/cycle_"$cycleold"/fesom.2018.ice.restart.nc /work/bb1143/b382132/model/fesom2/FESOM2_multi-year/result/fesom.1957.ice.restart.nc
+        
+        # echo to write the clock data to a clock file
+        # echo -e "86100.0   365   1957\n0.0       1     1958" > /work/bb1143/b382132/model/fesom2/FESOM2_multi-year/result/fesom.clock
+        echo -e "85800.0   365   1957\n0.0       1     1958" > /work/bb1143/b382132/model/fesom2/FESOM2_multi-year/result/fesom.clock
+        
+        # New Cycle
+        cyclenew=$((cycleold + 1))
+        yearnew=$((yearold - 60))
+        
+    else
+    
+        # Next Year
+        yearnew=$((yearold + 1))
+        cyclenew=$((cycleold + 0))
+        
+    fi 
+
+else
+
+    yearnew=$((yearold + 0))
+    cyclenew=$((cycleold + 0))
+
+fi
+
+
+if [ "$cyclenew" -eq 5 ] && [ "$yearnew" -ge 1996 ]; then
+
+    ti_start_transit=$(((((yearnew - 61) - 1935)*12)+1))
+
+    # Activate calculations of transit tracers
+    sed -i "s/^use_transit.*/use_transit=.true./" namelist.config
+    sed -i "s/^anthro_transit.*/anthro_transit=.true./" namelist.config
+    sed -i "s/^ti_start_transit.*/ti_start_transit=$ti_start_transit/" namelist.config
+    sed -i "s/^num_tracers.*/num_tracers=8/" namelist.oce
+    sed -i "s/^tracer_ID.*/tracer_ID=0,1,11,12,6,110,120,60/" namelist.oce
+
+elif [ "$cyclenew" -eq 6 ]; then
+
+    ti_start_transit=$((((yearnew - 1935)*12)+1))
+
+    # Activate calculations of transit tracers
+    sed -i "s/^use_transit.*/use_transit=.true./" namelist.config
+    sed -i "s/^anthro_transit.*/anthro_transit=.true./" namelist.config
+    sed -i "s/^ti_start_transit.*/ti_start_transit=$ti_start_transit/" namelist.config
+    sed -i "s/^num_tracers.*/num_tracers=8/" namelist.oce
+    sed -i "s/^tracer_ID.*/tracer_ID=0,1,11,12,6,110,120,60/" namelist.oce
+
+else
+	
+    # Deactivate calculations of transit tracers
+    sed -i "s/^use_transit.*/use_transit=.false./" namelist.config
+    sed -i "s/^anthro_transit.*/anthro_transit=.false./" namelist.config
+    # sed -i "s/^ti_start_transit.*/ti_start_transit=$ti_start_transit/" namelist.config
+    sed -i "s/^num_tracers.*/num_tracers=2/" namelist.oce
+    sed -i "s/^tracer_ID.*/tracer_ID=0,1/" namelist.oce
+
+fi 
+
+ 
+# Write output values to files
+sed -i "s/^yearnew.*/yearnew=$((yearnew-1))/" namelist.config
+sed -i "1s/$cycleold/$cyclenew/" fesom.cycle
+
+
+
+#########################################################################################
+
+
+
+if [ "$cyclenew" -lt 7 ]; then
+
+    # source /sw/etc/profile.levante
+    # source ../env/levante.dkrz.de/shell
+    # read -r USED_SHELL < ../bin/current_shell_path
+    # source $USED_SHELL
+    # echo "using environment from" $USED_SHELL
+
+    # export I_MPI_PMI=pmi2
+    # export I_MPI_PMI_LIBRARY=/usr/lib64/libpmi2.so
+
+    # ulimit -s 204800    #102400 204800
+
+    # set +exu
+    echo Submitted job: $jobid
+    squeue -u $USER
+
+    # determine JOBID
+    JOBID=`echo $SLURM_JOB_ID |cut -d"." -f1`
+
+    ln -s ../bin/fesom.x .           # cp -n ../bin/fesom.x
+    cp -n ../config/namelist.config  .
+    cp -n ../config/namelist.forcing .
+    cp -n ../config/namelist.oce     .
+    cp -n ../config/namelist.ice     .
+    cp -n ../config/namelist.io      .
+
+
+    date
+
+    srun -l fesom.x > "fesom.out"
+
+    date
+
+
+    # qstat -f $PBS_JOBID
+    #export EXITSTATUS=$?
+    #if [ ${EXITSTATUS} -eq 0 ] || [ ${EXITSTATUS} -eq 127 ] ; then
+    #sbatch job_mistral
+    #fi
+
+
+    # ti_start_transit=$(grep '^ti_start_transit=' namelist.config | sed -E 's/ti_start_transit=([0-9]+).*/\1/')
+    # run_length=$(grep '^run_length=' namelist.config | sed -E 's/run_length=([0-9]+).*/\1/')
+    # ti_start_transit=$((ti_start_transit+run_length-5))
+    # sed -i "s/^ti_start_transit=[0-9]\+/ti_start_transit=$ti_start_transit/" namelist.config
+
+    sbatch job_levante_ypy
+
+
+    # #ddSBATCH --nodes=18
+    # #ddSBATCH --ntasks-per-node=128
+    # #ddSBATCH --ntasks=2304
+    
+fi
