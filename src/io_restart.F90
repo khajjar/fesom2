@@ -142,9 +142,38 @@ subroutine ini_ocean_io(year, mesh)
          longname='salinity'
          units='psu'
        CASE DEFAULT
-         write(trname,'(A3,i1)') 'tra_', j
-         write(longname,'(A15,i1)') 'passive tracer ', j
-         units='none'
+         select case(tracer_id(j))
+!          additional (transient) tracers
+           CASE(6)
+             trname='sf6'
+             longname='sulfur hexafluoride'
+             units='mol / m**3'
+           CASE(11)
+             trname='cfc11'
+             longname='chlorofluorocarbon CFC-11'
+             units='mol / m**3'
+           CASE(12)
+             trname='cfc12'
+             longname='chlorofluorocarbon CFC-12'
+             units='mol / m**3'
+           CASE(60)
+             trname='psf6'
+             longname='sulfur hexafluoride'
+             units='ppt'
+           CASE(110)
+             trname='pcfc11'
+             longname='chlorofluorocarbon CFC-11'
+             units='ppt'
+           CASE(120)
+             trname='pcfc12'
+             longname='chlorofluorocarbon CFC-12'
+             units='ppt'
+           case default
+!            other passive tracers
+             write(trname,'(A3,i1)') 'tra_', j
+             write(longname,'(A15,i1)') 'passive tracer ', j
+             units='none'
+         end select
      END SELECT
      call def_variable(oid, trim(trname),       (/nl-1, nod2D/), trim(longname), trim(units), tr_arr(:,:,j));
      longname=trim(longname)//', Adams–Bashforth'

@@ -188,11 +188,16 @@ CASE ('m_snow    ')
     end if
     
 !___________________________________________________________________________________________________________________________________
-! output mixed layer depth    
+! output mixed layer depth and halocline layer depth   
 CASE ('MLD1      ')
     call def_stream(nod2D, myDim_nod2D, 'MLD1',     'Mixed Layer Depth',               'm',      MLD1(1:myDim_nod2D),       io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
 CASE ('MLD2      ')
     call def_stream(nod2D, myDim_nod2D, 'MLD2',     'Mixed Layer Depth',               'm',      MLD2(1:myDim_nod2D),       io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
+CASE ('CHLD2     ')
+    call def_stream(nod2D, myDim_nod2D, 'CHLD2',     'Cold Halocline Layer Depth below the Mixed Layer',               'm',      CHLD2(1:myDim_nod2D),       io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
+CASE ('CHL2_frac ')
+    call def_stream(nod2D, myDim_nod2D, 'CHL2_frac',     'Fraction of Time Steps with Occurrence of Cold Halocline Layer',               'none',      CHL2_frac(1:myDim_nod2D),       io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
+
     
 !___________________________________________________________________________________________________________________________________
 ! output surface forcing
@@ -289,10 +294,29 @@ CASE ('temp      ')
     call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'temp',      'temperature', 'C',      tr_arr(:,:,1),             io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
 CASE ('salt      ')
     call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'salt',      'salinity',    'psu',    tr_arr(:,:,2),             io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
+CASE ('sigma0      ')
+    call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'sigma0',      'potential density',    'kg/m3',    density_m_rho0(:,:), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
 CASE ('otracers  ')
     do j=3, num_tracers
     write (id_string, "(I3.3)") tracer_id(j)
-    call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'tra_'//id_string, 'pasive tracer ID='//id_string, 'n/a', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
+      select case(tracer_id(j))
+!       additional (transient) tracers
+        case(6)
+          call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'sf6', 'sulfur hexafluoride', 'mol / m**3', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
+        case(11)
+          call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'cfc11', 'chlorofluorocarbon CFC-11', 'mol / m**3', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
+        case(12)
+          call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'cfc12', 'chlorofluorocarbon CFC-12', 'mol / m**3', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
+        case(60)
+          call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'psf6', 'sulfur hexafluoride', 'ppt', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
+        case(110)
+          call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'pcfc11', 'chlorofluorocarbon CFC-11', 'ppt', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
+        case(120)
+          call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'pcfc12', 'chlorofluorocarbon CFC-12', 'ppt', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
+        case default
+!         other passive tracers
+          call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'tra_'//id_string, 'passive tracer ID='//id_string, 'n/a', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
+      end select
     end do
 CASE ('slope_x   ')
     call def_stream((/nl-1,  nod2D/), (/nl-1, myDim_nod2D/),  'slope_x',   'neutral slope X',    'none', slope_tapered(1,:,:), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)

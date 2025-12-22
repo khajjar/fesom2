@@ -122,9 +122,10 @@ subroutine pressure_bv(mesh)
     real(kind=WP)            :: dz_inv, bv,  a, rho_up, rho_dn, t, s
     integer                  :: node, nz, nl1, nzmax, nzmin
     real(kind=WP)            :: rhopot(mesh%nl), bulk_0(mesh%nl), bulk_pz(mesh%nl), bulk_pz2(mesh%nl), rho(mesh%nl), dbsfc1(mesh%nl), db_max
-    real(kind=WP)            :: bulk_up, bulk_dn, smallvalue, buoyancy_crit, rho_surf, aux_rho, aux_rho1
+    real(kind=WP)            :: bulk_up, bulk_dn, smallvalue, buoyancy_crit, rho_surf, aux_rho, aux_rho1, Z_below_chl
     real(kind=WP)            :: sigma_theta_crit=0.125_WP   !kg/m3, Levitus threshold for computing MLD2
-    logical                  :: flag1, flag2, mixing_kpp
+    real(kind=WP)            :: l_crit=-4.14_WP, t_chl_crit=0.0_WP   !Stability and temperature thresholds for computing CHLD2
+    logical                  :: flag1, flag2, flag22, mixing_kpp
 #include "associate_mesh.h"
     smallvalue=1.0e-20
     buoyancy_crit=0.0003_WP
@@ -304,14 +305,20 @@ subroutine pressure_bv(mesh)
         ! as the shallowest depth where the vertical derivative of buoyancy 
         ! is equal to a local critical buoyancy gradient (Griffies et al., 
         ! 2009) (-->MLD1). 
+        ! In Addation: Calculate cold halocline depth after Enrico et al. (2023),
+        ! who defined it by depth where largest stability below threshold of -4.14
+        ! and temperature is 0.
         ! BV frequency:  bvfreq(nl,:), squared value is stored   
         MLD1(node)=Z_3d_n(nzmin+1,node)
         MLD2(node)=Z_3d_n(nzmin+1,node)
+        CHLD2(node)=Z_3d_n(nzmin+1,node)
         MLD1_ind(node)=nzmin+1
         MLD2_ind(node)=nzmin+1
+        CHLD2_ind(node)=nzmin+1
         
         flag1=.true.
         flag2=.true.
+        flag22=.true.
         do nz=nzmin+1,nzmax-1
             bulk_up = bulk_0(nz-1) + zbar_3d_n(nz,node)*(bulk_pz(nz-1) + zbar_3d_n(nz,node)*bulk_pz2(nz-1)) 
             bulk_dn = bulk_0(nz)   + zbar_3d_n(nz,node)*(bulk_pz(nz)   + zbar_3d_n(nz,node)*bulk_pz2(nz))
@@ -350,8 +357,43 @@ subroutine pressure_bv(mesh)
                 MLD2(node)=Z_3d_n(nz,node)
             end if
         end do
+
+        ! calculate cold halocline layer depth below MLD2 after Metzner and Salzmann. 2023 (https://doi.org/10.5194/os-19-1453-2023)
+        ! important note: CHLD2 is base depth below MLD2, not below surface
+        ! CHL2_frac is cold halocline layer occurrence indicator 
+        ! CHL2_frac = 1 if cold halocline layer detected, 0 otherwise
+        ! CHLD2 = MLD2 if cold halocline layer is not detected
+        if (Z_3d_n(nzmax-1,node) < MLD2(node)) then
+            Z_below_chl = Z_3d_n(nzmax-1,node)
+            if (Z_below_chl < -500.0_WP) Z_below_chl = -500.0_WP
+            if (Z_below_chl < -600.0_WP) Z_below_chl = -600.0_WP
+            do nz=nzmax-1, nzmin+1, -1
+                if (bvfreq(nz,node)>0.0_WP) then
+                    if ((Z_3d_n(nz,node)>Z_below_chl) .and. (log10(bvfreq(nz,node))>l_crit) .and. &
+                        (tr_arr(nz, node,1)<t_chl_crit) .and. (flag22)) then
+                        CHLD2(node) = Z_3d_n(nz,node)
+                        CHLD2_ind(node)=nz
+                        flag22=.false. 
+                    elseif (flag22) then
+                        CHLD2(node)=MLD2(node) 
+                    end if
+                elseif (flag22) then
+                    CHLD2(node)=MLD2(node) 
+                end if
+            end do           
+        else
+            CHLD2(node)=MLD2(node) 
+        end if
+
+        if (CHLD2(node) > MLD2(node)) CHLD2(node) = MLD2(node)
+
+        CHLD2(node) = CHLD2(node) - MLD2(node)
+
+        CHL2_frac(node) = 0.0_WP
+        if (CHLD2(node) < 0.0_WP) CHL2_frac(node) = 1.0_WP
         
         if (flag2) MLD2_ind(node)=nzmax-1
+        if (flag22) CHLD2_ind(node)=nzmax-1
                 
         bvfreq(nzmin,node)=bvfreq(nzmin+1,node)
         bvfreq(nzmax,node)=bvfreq(nzmax-1,node) 

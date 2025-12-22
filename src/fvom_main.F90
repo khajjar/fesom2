@@ -24,6 +24,8 @@ use diagnostics
 use mo_tidal
 use fesom_version_info_module
 use command_line_options_module
+! Transient tracers
+use mod_transit, only: year_ce, xf11_nh, xf11_sh, xf12_nh, xf12_sh, xsf6_nh, xsf6_sh, ti_transit
 
 ! Define icepack module
 #if defined (__icepack)
@@ -36,7 +38,7 @@ use cpl_driver
 
 IMPLICIT NONE
 
-integer :: n, nsteps, offset, row, i, provided
+integer :: n, nsteps, offset, row, i, provided, iMonth
 real(kind=WP)     :: t0, t1, t2, t3, t4, t5, t6, t7, t8, t0_ice, t1_ice, t0_frc, t1_frc
 real(kind=WP)     :: rtime_fullice,    rtime_write_restart, rtime_write_means, rtime_compute_diag, rtime_read_forcing
 real(kind=real32) :: rtime_setup_mesh, rtime_setup_ocean, rtime_setup_forcing 
@@ -86,6 +88,21 @@ integer mpi_version_len
     call mesh_setup(mesh)
 
     if (mype==0) write(*,*) 'FESOM mesh_setup... complete'
+    
+    !   Transient tracers: control output of initial input values
+    if(mype==0 .and. use_transit .and. anthro_transit) then
+      write (*,*)
+      write (*,*) "*** Transient tracers: initial input values >>>"
+      write (*,*) "Date, xCFC-11_NH, xCFC-11_SH, xCFC-12_NH, xCFC-12_SH, xSF6_NH, xSF6_SH"
+      DO iMonth = 0, 11
+         write (*, fmt="(2x,i6,6(2x,f6.2))"), &
+                     year_ce(ti_transit + iMonth), &
+                     xf11_nh(ti_transit + iMonth) * 1.e12, xf11_sh(ti_transit + iMonth) * 1.e12, &
+                     xf12_nh(ti_transit + iMonth) * 1.e12, xf12_sh(ti_transit + iMonth) * 1.e12, &
+                     xsf6_nh(ti_transit + iMonth) * 1.e12, xsf6_sh(ti_transit + iMonth) * 1.e12
+      END DO
+      write (*,*)
+    end if
     
     !=====================
     ! Allocate field variables 
@@ -265,6 +282,38 @@ integer mpi_version_len
         rtime_write_means   = rtime_write_means   + t5 - t4   
         rtime_write_restart = rtime_write_restart + t6 - t5
         rtime_read_forcing  = rtime_read_forcing  + t1_frc - t0_frc
+        
+!       Transient tracers: update of input values between restarts
+        if(use_transit .and. anthro_transit .and. (daynew == ndpyr) .and. (timenew==86400.)) then
+          ti_transit = ti_transit + 12
+          if (mype==0) then
+            write (*,*)
+            write (*,*) "*** Transient tracers: updated input values >>>"
+            DO iMonth = 0, 11
+               write (*, fmt="(2x,i6,6(2x,f6.2))"), &
+                           year_ce(ti_transit + iMonth), &
+                           xf11_nh(ti_transit + iMonth) * 1.e12, xf11_sh(ti_transit + iMonth) * 1.e12, &
+                           xf12_nh(ti_transit + iMonth) * 1.e12, xf12_sh(ti_transit + iMonth) * 1.e12, &
+                           xsf6_nh(ti_transit + iMonth) * 1.e12, xsf6_sh(ti_transit + iMonth) * 1.e12
+            END DO
+            write (*,*)
+          end if
+        endif
+
+!       Transient tracers: actual input values        
+        if(use_transit .and. anthro_transit .and. (mod(n,logfile_outfreq)==0) .and. (mype==0)) then
+          write (*,*)
+          write (*,*) "*** Transient tracers: actual monthly input values >>>"
+          write (*,*) "Date, xCFC-11_NH, xCFC-11_SH, xCFC-12_NH, xCFC-12_SH, xSF6_NH, xSF6_SH"
+          write (*, fmt="(2x,i6,6(2x,f6.2))"), &
+                      year_ce(ti_transit + (month - 1)), &
+                      xf11_nh(ti_transit + (month - 1)) * 1.e12, xf11_sh(ti_transit + (month - 1)) * 1.e12, &
+                      xf12_nh(ti_transit + (month - 1)) * 1.e12, xf12_sh(ti_transit + (month - 1)) * 1.e12, &
+                      xsf6_nh(ti_transit + (month - 1)) * 1.e12, xsf6_sh(ti_transit + (month - 1)) * 1.e12
+          write (*,*)
+        end if
+        
+        
     end do
     
     call finalize_output()

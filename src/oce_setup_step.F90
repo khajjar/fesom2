@@ -334,7 +334,7 @@ call exchange_nod(Ki)
 neutral_slope=0.0_WP
 slope_tapered=0.0_WP
 
-allocate(MLD1(node_size), MLD2(node_size), MLD1_ind(node_size), MLD2_ind(node_size))
+allocate(MLD1(node_size), MLD2(node_size), CHLD2(node_size), CHL2_frac(node_size), MLD1_ind(node_size), MLD2_ind(node_size), CHLD2_ind(node_size))
 if (use_global_tides) then
    allocate(ssh_gp(node_size))
    ssh_gp=0.
@@ -411,8 +411,11 @@ end if
 
     MLD1   =0.0_WP
     MLD2   =0.0_WP
+    CHLD2  =0.0_WP
+    CHL2_frac=0.0_WP
     MLD1_ind=0.0_WP
     MLD2_ind=0.0_WP
+    CHLD2_ind=0.0_WP
 
     relax2clim=0.0_WP
 
@@ -457,6 +460,8 @@ USE o_ARRAYS
 USE g_PARSUP
 USE g_config
 USE g_ic3d
+! for additional (transient) tracers:
+use mod_transit, only: id_f11, id_f12, id_sf6, id_pf11, id_pf12, id_psf6
   !
   ! reads the initial state or the restart file for the ocean
   !
@@ -593,6 +598,56 @@ USE g_ic3d
             write (id_string, "(I3)") id
             write(*,*) 'initializing '//trim(i_string)//'th tracer with ID='//trim(id_string)
          end if
+!      Transient tracers
+       CASE (11)        ! initialize tracer ID=11, CFC-11
+         id_f11 = i
+         tr_arr(:,:,i) = 0.
+         if (mype==0) then
+            write (i_string,  "(I3)") i
+            write (id_string, "(I3)") id
+            write(*,*) 'initializing '//trim(i_string)//'th tracer with ID='//trim(id_string)
+         end if
+       CASE (12)        ! initialize tracer ID=12, CFC-12
+         id_f12 = i
+         tr_arr(:,:,i) = 0.
+         if (mype==0) then
+            write (i_string,  "(I3)") i
+            write (id_string, "(I3)") id
+            write(*,*) 'initializing '//trim(i_string)//'th tracer with ID='//trim(id_string)
+         end if
+       CASE (6)         ! initialize tracer ID=6, SF6
+         id_sf6 = i
+         tr_arr(:,:,i) = 0.
+         if (mype==0) then
+            write (i_string,  "(I3)") i
+            write (id_string, "(I3)") id
+            write(*,*) 'initializing '//trim(i_string)//'th tracer with ID='//trim(id_string)
+         end if
+       CASE (110)        ! initialize tracer ID=11, CFC-11
+         id_pf11 = i
+         tr_arr(:,:,i) = 0.
+         if (mype==0) then
+            write (i_string,  "(I3)") i
+            write (id_string, "(I3)") id
+            write(*,*) 'initializing '//trim(i_string)//'th tracer with ID='//trim(id_string)
+         end if
+       CASE (120)        ! initialize tracer ID=12, CFC-12
+         id_pf12 = i
+         tr_arr(:,:,i) = 0.
+         if (mype==0) then
+            write (i_string,  "(I3)") i
+            write (id_string, "(I3)") id
+            write(*,*) 'initializing '//trim(i_string)//'th tracer with ID='//trim(id_string)
+         end if
+       CASE (60)         ! initialize tracer ID=6, SF6
+         id_psf6 = i
+         tr_arr(:,:,i) = 0.
+         if (mype==0) then
+            write (i_string,  "(I3)") i
+            write (id_string, "(I3)") id
+            write(*,*) 'initializing '//trim(i_string)//'th tracer with ID='//trim(id_string)
+         end if
+!      Transient tracers end
        CASE DEFAULT
          if (mype==0) then
             write (i_string,  "(I3)") i

@@ -159,7 +159,7 @@ real(kind=WP)    :: coeff_limit_salinity=0.0023   !m/s, coefficient to restore s
 
 ! *** others ***
  real(kind=WP)                        :: time_sum=0.0 ! for runtime estimate
-
+ 
 !___________________________________________
 ! Pressure Gradient Force  calculation (pgf) 
 ! calculation of pgf either: 
@@ -253,8 +253,8 @@ real(kind=WP), allocatable    :: tau_x_t(:,:), tau_y_t(:,:)
 real(kind=WP), allocatable    :: heat_flux_t(:,:), heat_rel_t(:,:), heat_rel(:) 
 real(kind=WP), allocatable    :: coriolis(:), coriolis_node(:)
 real(kind=WP), allocatable    :: relax2clim(:)
-real(kind=WP), allocatable    :: MLD1(:), MLD2(:)
-integer,       allocatable    :: MLD1_ind(:), MLD2_ind(:)
+real(kind=WP), allocatable    :: MLD1(:), MLD2(:), CHLD2(:), CHL2_frac(:)
+integer,       allocatable    :: MLD1_ind(:), MLD2_ind(:), CHLD2_ind(:)
 real(kind=WP), allocatable    :: ssh_gp(:)
 ! Passive and age tracers
 real(kind=WP), allocatable    :: tracer(:,:,:), tracer_rhs(:,:,:)   

@@ -1157,15 +1157,42 @@ FUNCTION bc_surface(n, id, mesh)
   USE g_forcing_arrays
   USE g_PARSUP, only: mype, par_ex
   USE g_config
+! The following modules and variables are needed for (transient) abiotic tracer simulations
+  use mod_transit
+  use o_mesh                         ! MB needed for transient tracer simulations ??
+  use g_clock, only: month, yearnew  ! MB yearnew is needed for transient tracer simulations
+  use i_arrays, only: a_ice
+  use o_param
+
   implicit none
   
   type(t_mesh), intent(in) , target :: mesh  
   REAL(kind=WP)       :: bc_surface
   integer, intent(in) :: n, id
   character(len=10)   :: id_string
+!  REAL(kind=WP)       :: valEnd, valMean, valStart
 
   !  --> is_nonlinfs=1.0 for zelvel,zstar ....                            
   !  --> is_nonlinfs=0.0 for linfs
+  
+  y_abc = mesh%geo_coord_nod2D(2,n) / rad  ! latitude of atmospheric tracer input
+  yy_nh = (10. - y_abc) * 0.05        ! interpolation weight for tropical tracer values
+  
+  
+  if (use_transit) then
+#if defined (__oasis)
+!   SLP and wind speed in coupled setups. This is a makeshift solution
+!   as long as the true values are not provided by the AGCM / OASIS. 
+    press_a = mean_slp 
+    wind_2  = speed_2(stress_atmoce_x(n), stress_atmoce_y(n))
+#else 
+    press_a = press_air(n)
+!    PRINT *, "khaledayten:", press_air
+    wind_2  = u_wind(n)**2 + v_wind(n)**2
+#endif  
+  end if
+  
+  
   SELECT CASE (id)
     CASE (0)
         bc_surface=-dt*(heat_flux(n)/vcpw + tr_arr(mesh%ulevels_nod2D(n),n,1)*water_flux(n)*is_nonlinfs)
@@ -1182,6 +1209,218 @@ FUNCTION bc_surface(n, id, mesh)
         bc_surface=0.0_WP
     CASE (303)
         bc_surface=0.0_WP
+        
+
+!   CFC-11:
+    CASE (11)
+      if (anthro_transit) then
+!       Select atmospheric input values corresponding to the latitude
+!       Annual values are interpolated to monthly values
+        if (y_abc > 10.)  then       ! Northern Hemisphere
+!          Northern Hemisphere
+           xf11_a = xf11_nh(ti_transit + (month - 1))
+        else if (y_abc <- 10.) then  
+!          Southern Hemisphere
+           xf11_a = xf11_sh(ti_transit + (month - 1))
+        else                         
+!          Tropical zone, interpolate between NH and SH
+           xf11_a = (1 - yy_nh) * xf11_nh(ti_transit + (month - 1)) + yy_nh * xf11_sh(ti_transit + (month - 1))
+        end if
+      else 
+!       Constant (global-mean) namelist values are taken
+        if (y_abc > 10.)  then       ! Northern Hemisphere
+!          Northern Hemisphere
+           xf11_a = xf11_nh(ti_transit)
+        else if (y_abc <- 10.) then  
+!          Southern Hemisphere
+           xf11_a = xf11_sh(ti_transit)
+        else                         
+!          Tropical zone, interpolate between NH and SH
+           xf11_a = (1 - yy_nh) * xf11_nh(ti_transit) + yy_nh * xf11_sh(ti_transit)
+        end if
+      end if
+!     Local air-sea exchange gas flux of CFC-11 (in m / s):
+      bc_surface = dt * (gas_flux("f11",                                                                 &
+                                  tr_arr(mesh%ulevels_nod2D(n),n,1), tr_arr(mesh%ulevels_nod2D(n),n,2),  &
+                                  wind_2, a_ice(n), press_a, xf11_a,                                     &
+                                  tr_arr(mesh%ulevels_nod2D(n),n,id_f11))                                &
+                         - tr_arr(mesh%ulevels_nod2D(n),n,id_f11) * water_flux(n) * is_nonlinfs)        
+!   CFC-12:
+    CASE (12)
+      if (anthro_transit) then
+!       Select atmospheric input values corresponding to the latitude
+!       Annual values are interpolated to monthly values, this is omitted in the last simulation year
+        if (y_abc > 10.)  then       ! Northern Hemisphere
+!          Northern Hemisphere
+           xf12_a = xf12_nh(ti_transit + (month - 1))
+        else if (y_abc <- 10.) then
+!          Southern Hemisphere
+           xf12_a = xf12_sh(ti_transit + (month - 1))
+        else
+!          Tropical zone, interpolate between NH and SH
+           xf12_a = (1 - yy_nh) * xf12_nh(ti_transit + (month - 1)) + yy_nh * xf12_sh(ti_transit + (month - 1))
+        end if
+      else 
+!       Constant (global-mean) namelist values are taken
+        if (y_abc > 10.)  then       ! Northern Hemisphere
+!          Northern Hemisphere
+           xf12_a = xf12_nh(ti_transit)
+        else if (y_abc <- 10.) then  
+!          Southern Hemisphere
+           xf12_a = xf12_sh(ti_transit)
+        else                         
+!          Tropical zone, interpolate between NH and SH
+           xf12_a = (1 - yy_nh) * xf12_nh(ti_transit) + yy_nh * xf12_sh(ti_transit)
+        end if
+      end if
+!     Local air-sea exchange gas flux of CFC-12 (in m / s):
+      bc_surface = dt * (gas_flux("f12",                                                                 &
+                                  tr_arr(mesh%ulevels_nod2D(n),n,1), tr_arr(mesh%ulevels_nod2D(n),n,2),  &
+                                  wind_2, a_ice(n), press_a, xf12_a,                                     &
+                                  tr_arr(mesh%ulevels_nod2D(n),n,id_f12))                                &
+                         - tr_arr(mesh%ulevels_nod2D(n),n,id_f12) * water_flux(n) * is_nonlinfs)
+!   SF6:
+    CASE (6)
+      if (anthro_transit) then
+!       Select atmospheric input values corresponding to the latitude
+!       Annual values are interpolated to monthly values, this is omitted in the last simulation year
+        if (y_abc > 10.)  then       ! Northern Hemisphere
+!          Northern Hemisphere
+           xsf6_a = xsf6_nh(ti_transit + (month - 1))
+        else if (y_abc <- 10.) then
+!          Southern Hemisphere
+           xsf6_a = xsf6_sh(ti_transit + (month - 1))
+        else
+!          Tropical zone, interpolate between NH and SH
+           xsf6_a = (1 - yy_nh) * xsf6_nh(ti_transit + (month - 1)) + yy_nh * xsf6_sh(ti_transit + (month - 1))
+        end if
+      else 
+!       Constant (global-mean) namelist values are taken
+        if (y_abc > 10.)  then       ! Northern Hemisphere
+!          Northern Hemisphere
+           xsf6_a = xsf6_nh(ti_transit)
+        else if (y_abc <- 10.) then  
+!          Southern Hemisphere
+           xsf6_a = xsf6_sh(ti_transit)
+        else                         
+!          Tropical zone, interpolate between NH and SH
+           xsf6_a = (1 - yy_nh) * xsf6_nh(ti_transit) + yy_nh * xsf6_sh(ti_transit)
+        end if
+      end if
+!     Local air-sea exchange gas flux of SF6 (in m / s):
+      bc_surface = dt * (gas_flux("sf6",                                                                 &
+                                  tr_arr(mesh%ulevels_nod2D(n),n,1), tr_arr(mesh%ulevels_nod2D(n),n,2),  &
+                                  wind_2, a_ice(n), press_a, xsf6_a,                                     &
+                                  tr_arr(mesh%ulevels_nod2D(n),n,id_sf6))                                &
+                         - tr_arr(mesh%ulevels_nod2D(n),n,id_sf6) * water_flux(n) * is_nonlinfs)
+
+!   pCFC-11:
+    CASE (110)
+      if (anthro_transit) then
+!       Select atmospheric input values corresponding to the latitude
+!       Annual values are interpolated to monthly values
+        if (y_abc > 10.)  then       ! Northern Hemisphere
+!          Northern Hemisphere
+           xf11_a = xf11_nh(ti_transit + (month - 1))
+        else if (y_abc <- 10.) then  
+!          Southern Hemisphere
+           xf11_a = xf11_sh(ti_transit + (month - 1))
+        else                         
+!          Tropical zone, interpolate between NH and SH
+           xf11_a = (1 - yy_nh) * xf11_nh(ti_transit + (month - 1)) + yy_nh * xf11_sh(ti_transit + (month - 1))
+        end if
+      else 
+!       Constant (global-mean) namelist values are taken
+        if (y_abc > 10.)  then       ! Northern Hemisphere
+!          Northern Hemisphere
+           xf11_a = xf11_nh(ti_transit)
+        else if (y_abc <- 10.) then  
+!          Southern Hemisphere
+           xf11_a = xf11_sh(ti_transit)
+        else                         
+!          Tropical zone, interpolate between NH and SH
+           xf11_a = (1 - yy_nh) * xf11_nh(ti_transit) + yy_nh * xf11_sh(ti_transit)
+        end if
+      end if
+!     Local air-sea exchange gas flux of CFC-11:
+      bc_surface = (((dt * gas_flux("f11",                                                               &
+                                  tr_arr(mesh%ulevels_nod2D(n),n,1), tr_arr(mesh%ulevels_nod2D(n),n,2),  &
+                                  wind_2, a_ice(n), press_a, xf11_a,                                     &
+                                  tr_arr(mesh%ulevels_nod2D(n),n,id_f11)))                               &
+                        / (solub("f11", tr_arr(mesh%ulevels_nod2D(n),n,1), tr_arr(mesh%ulevels_nod2D(n),n,2))*(press_a / 1.01325e5))) * 1.e12) &
+                         - (dt * tr_arr(mesh%ulevels_nod2D(n),n,id_pf11) * water_flux(n) * is_nonlinfs)
+
+!   pCFC-12:
+    CASE (120)
+      if (anthro_transit) then
+!       Select atmospheric input values corresponding to the latitude
+!       Annual values are interpolated to monthly values, this is omitted in the last simulation year
+        if (y_abc > 10.)  then       ! Northern Hemisphere
+!          Northern Hemisphere
+           xf12_a = xf12_nh(ti_transit + (month - 1))
+        else if (y_abc <- 10.) then
+!          Southern Hemisphere
+           xf12_a = xf12_sh(ti_transit + (month - 1))
+        else
+!          Tropical zone, interpolate between NH and SH
+           xf12_a = (1 - yy_nh) * xf12_nh(ti_transit + (month - 1)) + yy_nh * xf12_sh(ti_transit + (month - 1))
+        end if
+      else 
+!       Constant (global-mean) namelist values are taken
+        if (y_abc > 10.)  then       ! Northern Hemisphere
+!          Northern Hemisphere
+           xf12_a = xf12_nh(ti_transit)
+        else if (y_abc <- 10.) then  
+!          Southern Hemisphere
+           xf12_a = xf12_sh(ti_transit)
+        else                         
+!          Tropical zone, interpolate between NH and SH
+           xf12_a = (1 - yy_nh) * xf12_nh(ti_transit) + yy_nh * xf12_sh(ti_transit)
+        end if
+      end if
+!     Local air-sea exchange gas flux of CFC-12:
+      bc_surface = (((dt * gas_flux("f12",                                                               &
+                                  tr_arr(mesh%ulevels_nod2D(n),n,1), tr_arr(mesh%ulevels_nod2D(n),n,2),  &
+                                  wind_2, a_ice(n), press_a, xf12_a,                                     &
+                                  tr_arr(mesh%ulevels_nod2D(n),n,id_f12)))                               &
+                        / (solub("f12", tr_arr(mesh%ulevels_nod2D(n),n,1), tr_arr(mesh%ulevels_nod2D(n),n,2))*(press_a / 1.01325e5))) * 1.e12) &
+                         - (dt * tr_arr(mesh%ulevels_nod2D(n),n,id_pf12) * water_flux(n) * is_nonlinfs)
+!   pSF6:
+    CASE (60)
+      if (anthro_transit) then
+!       Select atmospheric input values corresponding to the latitude
+!       Annual values are interpolated to monthly values, this is omitted in the last simulation year
+        if (y_abc > 10.)  then       ! Northern Hemisphere
+!          Northern Hemisphere
+           xsf6_a = xsf6_nh(ti_transit + (month - 1))
+        else if (y_abc <- 10.) then
+!          Southern Hemisphere
+           xsf6_a = xsf6_sh(ti_transit + (month - 1))
+        else
+!          Tropical zone, interpolate between NH and SH
+           xsf6_a = (1 - yy_nh) * xsf6_nh(ti_transit + (month - 1)) + yy_nh * xsf6_sh(ti_transit + (month - 1))
+        end if
+      else 
+!       Constant (global-mean) namelist values are taken
+        if (y_abc > 10.)  then       ! Northern Hemisphere
+!          Northern Hemisphere
+           xsf6_a = xsf6_nh(ti_transit)
+        else if (y_abc <- 10.) then  
+!          Southern Hemisphere
+           xsf6_a = xsf6_sh(ti_transit)
+        else                         
+!          Tropical zone, interpolate between NH and SH
+           xsf6_a = (1 - yy_nh) * xsf6_nh(ti_transit) + yy_nh * xsf6_sh(ti_transit)
+        end if
+      end if
+!     Local air-sea exchange gas flux of SF6 (in m / s):
+      bc_surface = (((dt * gas_flux("sf6",                                                               &
+                                  tr_arr(mesh%ulevels_nod2D(n),n,1), tr_arr(mesh%ulevels_nod2D(n),n,2),  &
+                                  wind_2, a_ice(n), press_a, xsf6_a,                                     &
+                                  tr_arr(mesh%ulevels_nod2D(n),n,id_sf6)))                               &
+                        / (solub("sf6", tr_arr(mesh%ulevels_nod2D(n),n,1), tr_arr(mesh%ulevels_nod2D(n),n,2))*(press_a / 1.01325e5))) * 1.e12) &
+                         - (dt * tr_arr(mesh%ulevels_nod2D(n),n,id_psf6) * water_flux(n) * is_nonlinfs)
+                                 
     CASE DEFAULT
       if (mype==0) then
          write (id_string, "(I3)") id
