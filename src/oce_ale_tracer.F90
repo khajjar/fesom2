@@ -1187,7 +1187,6 @@ FUNCTION bc_surface(n, id, mesh)
     wind_2  = speed_2(stress_atmoce_x(n), stress_atmoce_y(n))
 #else 
     press_a = press_air(n)
-!    PRINT *, "khaledayten:", press_air
     wind_2  = u_wind(n)**2 + v_wind(n)**2
 #endif  
   end if
